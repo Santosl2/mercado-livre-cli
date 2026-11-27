@@ -100,6 +100,30 @@ Categoria: Celulares e Telefones > Celulares e Smartphones
 
 ---
 
+## Interface web
+
+O `index.html` serve para navegar pelas categorias do `categorias-ml.json` e ver os mais vendidos de cada uma.
+
+```bash
+node --env-file=.env apiml.js categorias all --json   # gera categorias-ml.json (só na primeira vez)
+node --env-file=.env server.js                        # http://localhost:3000 (mude a porta com PORT=8080)
+```
+
+- **Navegação:** à esquerda, a árvore de categorias, ordenada por número de anúncios.
+- **Busca:** por nome, caminho ou ID, sem diferenciar acentos.
+- **Categoria selecionada:** mostra o caminho, o total de anúncios, as subcategorias e o ranking dos 20 mais vendidos.
+- **Link direto:** cada categoria tem endereço próprio, como `http://localhost:3000/#MLB1055`.
+
+O `server.js` existe porque o navegador não pode chamar a API direto: o `CLIENT_SECRET` ficaria exposto. Ele serve os arquivos e expõe uma rota:
+
+| Rota | Retorno |
+|---|---|
+| `GET /api/categorias/:id/itens?limit=20` | `{ id, items }`, no mesmo formato de `getBestSellersByCategory`. Máximo de 50 itens, com cache de 10 minutos. |
+
+No ranking, itens do tipo `USER_PRODUCT` e `ITEM` aparecem sem foto e sem título, porque a API bloqueia esses dados (veja as [limitações](#limitações-da-api)). O link para abrir no site continua funcionando.
+
+---
+
 ## Uso como biblioteca
 
 O arquivo usa CommonJS:

@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Categorias ML</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f3f5f7;
+      --panel: #ffffff;
+      --ink: #17202b;
+      --muted: #5e6b7a;
+      --line: #d9dfe6;
+      --accent: #2a4dd0;
+      --accent-soft: #e6ebfb;
+      --gold: #e0a100;
+      --bar: #c9d3f5;
+      --danger: #b4321f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #12161c;
+        --panel: #1a2029;
+        --ink: #e6ebf1;
+        --muted: #93a0b0;
+        --line: #2c3541;
+        --accent: #8aa4ff;
+        --accent-soft: #232d48;
+        --gold: #f2c14e;
+        --bar: #2e3b66;
+        --danger: #ff8a75;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.5 "Schibsted Grotesk", system-ui, sans-serif;
+    }
+    button { font: inherit; color: inherit; }
+    a { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      height: 100vh;
+    }
+
+    /* ---------- Sidebar ---------- */
+    .side {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+    }
+    .side-head { padding: 20px 20px 12px; border-bottom: 1px solid var(--line); }
+    .brand { margin: 0 0 12px; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+    .brand span { color: var(--muted); font-weight: 500; }
+    .search {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+    }
+    .search::placeholder { color: var(--muted); }
+    .crumbs-side {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 4px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 20px;
+    }
+    .crumbs-side button {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--accent);
+      cursor: pointer;
+    }
+    .crumbs-side .sep { color: var(--line); }
+
+    .list { flex: 1; overflow-y: auto; margin: 0; padding: 6px 0; list-style: none; }
+    .list li button {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 12px;
+      width: 100%;
+      padding: 9px 20px;
+      border: 0;
+      background: none;
+      text-align: left;
+      cursor: pointer;
+    }
+    .list li button:hover { background: var(--paper); }
+    .list li button[aria-current="true"] { background: var(--accent-soft); }
+    .list .name { font-weight: 500; }
+    .list .count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .list .path { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+    .list .bar {
+      grid-column: 1 / -1;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--bar);
+    }
+    .list-note { padding: 10px 20px; font-size: 13px; color: var(--muted); }
+
+    /* ---------- Main ---------- */
+    .main { overflow-y: auto; min-height: 0; }
+    .main-inner { max-width: 1100px; padding: 36px 40px 64px; }
+
+    .empty {
+      display: grid;
+      place-content: center;
+      min-height: 70vh;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty h2 { margin: 0 0 6px; color: var(--ink); font-size: 22px; }
+
+    .crumbs { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 14px; color: var(--muted); }
+    .crumbs a { color: var(--muted); text-decoration: none; }
+    .crumbs a:hover { color: var(--accent); text-decoration: underline; }
+
+    .cat-title {
+      margin: 6px 0 14px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.1;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+    }
+    .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 8px; color: var(--muted); }
+    .facts strong { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .facts code { font-size: 13px; }
+    .copy {
+      margin-left: 6px;
+      padding: 1px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: none;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 36px 0 4px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .section-title h2 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+    .section-title small { color: var(--muted); }
+
+    /* Ranking: a peça marcante da página */
+    .rank { margin: 0; padding: 0; list-style: none; columns: 2 420px; column-gap: 40px; }
+    .rank li {
+      display: grid;
+      grid-template-columns: 64px 72px 1fr;
+      gap: 16px;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+      break-inside: avoid;
+    }
+    .pos {
+      font-size: 44px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--line);
+    }
+    .rank li:nth-child(-n + 3) .pos { color: var(--gold); }
+    .thumb {
+      width: 72px;
+      height: 72px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--line);
+      object-fit: contain;
+    }
+    .thumb.none {
+      display: grid;
+      place-content: center;
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--paper);
+    }
+    .info { min-width: 0; }
+    .info a {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      color: var(--ink);
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .info a:hover { color: var(--accent); text-decoration: underline; }
+    .meta { margin-top: 2px; font-size: 12px; color: var(--muted); }
+    .price { font-weight: 600; color: var(--ink); }
+
+    .status { padding: 24px 0; color: var(--muted); }
+    .status.error { color: var(--danger); }
+    .skeleton li .pos, .skeleton li .thumb, .skeleton li .info span {
+      background: var(--line);
+      color: transparent;
+      border-radius: 6px;
+    }
+    .skeleton li .info span { display: block; height: 12px; margin: 6px 0; }
+    @media (prefers-reduced-motion: no-preference) {
+      .skeleton { animation: pulse 1.2s ease-in-out infinite; }
+      @keyframes pulse { 50% { opacity: 0.5; } }
+    }
+
+    .subcats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding: 0; list-style: none; }
+    .subcats a {
+      display: inline-block;
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--ink);
+      font-size: 14px;
+      text-decoration: none;
+    }
+    .subcats a:hover { border-color: var(--accent); color: var(--accent); }
+
+    @media (max-width: 820px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; }
+      .side { border-right: 0; border-bottom: 1px solid var(--line); }
+      .list { max-height: 45vh; }
+      .main { overflow: visible; }
+      .main-inner { padding: 24px 16px 48px; }
+      .rank li { grid-template-columns: 40px 56px 1fr; gap: 12px; }
+      .pos { font-size: 30px; }
+      .thumb { width: 56px; height: 56px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="side-head">
+        <h1 class="brand">Categorias <span>Mercado Livre</span></h1>
+        <input id="search" class="search" type="search" placeholder="Buscar por nome ou ID (ex: fone, MLB1055)" autocomplete="off" aria-label="Buscar categoria">
+        <nav id="side-crumbs" class="crumbs-side" aria-label="Nível atual"></nav>
+      </div>
+      <ul id="list" class="list" aria-label="Categorias"></ul>
+    </aside>
+
+    <main class="main">
+      <div id="view" class="main-inner">
+        <div class="empty"><p>Carregando categorias…</p></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const MAX_RESULTS = 150;
+    const fmt = new Intl.NumberFormat('pt-BR');
+    const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+    const $list = document.getElementById('list');
+    const $search = document.getElementById('search');
+    const $crumbs = document.getElementById('side-crumbs');
+    const $view = document.getElementById('view');
+
+    const state = { byId: new Map(), byPath: new Map(), children: new Map(), browsePath: '', selected: null };
+    let itemsRequest = 0;
+
+    // ---------- Dados ----------
+    async function loadCategories() {
+      const res = await fetch('categorias-ml.json');
+      if (!res.ok) throw new Error('categorias-ml.json não encontrado. Gere com: node --env-file=.env apiml.js categorias all --json');
+      const all = await res.json();
+
+      for (const c of all) {
+        const segs = c.path.split(' > ');
+        c.parentPath = segs.slice(0, -1).join(' > ');
+        c.depth = segs.length;
+        c.search = norm(c.path);
+        state.byId.set(c.id, c);
+        state.byPath.set(c.path, c);
+        if (!state.children.has(c.parentPath)) state.children.set(c.parentPath, []);
+        state.children.get(c.parentPath).push(c);
+      }
+      for (const list of state.children.values()) list.sort((a, b) => b.totalItems - a.totalItems);
+    }
+
+    const childrenOf = (path) => state.children.get(path) || [];
+    const ancestors = (c) => {
+      const out = [];
+      for (let p = c.parentPath; p; p = state.byPath.get(p)?.parentPath ?? '') {
+        const a = state.byPath.get(p);
+        if (!a) break;
+        out.unshift(a);
+      }
+      return out;
+    };
+
+    // ---------- Sidebar ----------
+    function renderSidebar() {
+      const q = norm($search.value.trim());
+      if (q) return renderSearch(q);
+
+      const current = state.byPath.get(state.browsePath);
+      const trail = current ? [...ancestors(current), current] : [];
+      $crumbs.innerHTML =
+        `<button data-path="">Todas</button>` +
+        trail.map((c) => `<span class="sep">/</span><button data-path="${esc(c.path)}">${esc(c.name)}</button>`).join('');
+
+      const items = childrenOf(state.browsePath);
+      const max = Math.max(1, ...items.map((c) => c.totalItems));
+      $list.innerHTML = items.map((c) => itemHtml(c, { bar: c.totalItems / max })).join('')
+        || `<li class="list-note">Sem subcategorias.</li>`;
+    }
+
+    function renderSearch(q) {
+      const upper = q.toUpperCase();
+      const exact = state.byId.get(upper);
+      const matches = [];
+      for (const c of state.byId.values()) {
+        if (c === exact) continue;
+        if (c.search.includes(q)) matches.push(c);
+      }
+      // Nome que casa vem antes de caminho que casa; depois por volume
+      matches.sort((a, b) => (norm(b.name).includes(q) - norm(a.name).includes(q)) || b.totalItems - a.totalItems);
+      const results = (exact ? [exact] : []).concat(matches);
+
+      $crumbs.textContent = results.length ? `${fmt.format(results.length)} resultado(s)` : '';
+      $list.innerHTML = results.length
+        ? results.slice(0, MAX_RESULTS).map((c) => itemHtml(c, { showPath: true })).join('') +
+          (results.length > MAX_RESULTS ? `<li class="list-note">Mostrando ${MAX_RESULTS}. Refine a busca para ver o resto.</li>` : '')
+        : `<li class="list-note">Nenhuma categoria com “${esc($search.value.trim())}”. Tente outro termo ou um ID como MLB1055.</li>`;
+    }
+
+    function itemHtml(c, { showPath = false, bar = null } = {}) {
+      return `<li><button data-id="${c.id}" ${state.selected === c.id ? 'aria-current="true"' : ''}>
+        <span class="name">${esc(c.name)}</span>
+        <span class="count">${fmt.format(c.totalItems)}</span>
+        ${showPath && c.parentPath ? `<span class="path">${esc(c.parentPath)}</span>` : ''}
+        ${bar !== null ? `<span class="bar" style="width:${Math.max(2, bar * 100).toFixed(1)}%"></span>` : ''}
+      </button></li>`;
+    }
+
+    $list.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-id]');
+      if (btn) location.hash = btn.dataset.id;
+    });
+    $crumbs.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-path]');
+      if (!btn) return;
+      state.browsePath = btn.dataset.path;
+      renderSidebar();
+    });
+    $search.addEventListener('input', renderSidebar);
+
+    // ---------- Categoria selecionada ----------
+    function selectFromHash() {
+      const id = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+      const c = state.byId.get(id);
+      if (!c) {
+        state.selected = null;
+        $view.innerHTML = `<div class="empty">
+          <h2>${id ? `Categoria ${esc(id)} não encontrada` : 'Escolha uma categoria'}</h2>
+          <p>Navegue pela lista ou busque por nome. São ${fmt.format(state.byId.size)} categorias.</p></div>`;
+        renderSidebar();
+        return;
+      }
+
+      state.selected = c.id;
+      // Na sidebar, mostra os filhos da categoria (ou os irmãos, se for folha)
+      state.browsePath = childrenOf(c.path).length ? c.path : c.parentPath;
+      renderSidebar();
+      renderCategory(c);
+      loadItems(c);
+    }
+
+    function renderCategory(c) {
+      const trail = ancestors(c);
+      const kids = childrenOf(c.path);
+      document.title = `${c.name} · Categorias ML`;
+
+      $view.innerHTML = `
+        <nav class="crumbs" aria-label="Caminho">
+          ${trail.map((a) => `<a href="#${a.id}">${esc(a.name)}</a><span aria-hidden="true">›</span>`).join('') || '<span>Categoria raiz</span>'}
+        </nav>
+        <h2 class="cat-title">${esc(c.name)}</h2>
+        <p class="facts">
+          <span><strong>${fmt.format(c.totalItems)}</strong> anúncios</span>
+          <span>${kids.length ? `<strong>${kids.length}</strong> ${kids.length === 1 ? 'subcategoria' : 'subcategorias'}` : 'Sem subcategorias'}</span>
+          <span>ID <code>${c.id}</code><button class="copy" data-copy="${c.id}">Copiar</button></span>
+        </p>
+        ${kids.length ? `<ul class="subcats">${kids.slice(0, 24).map((k) => `<li><a href="#${k.id}">${esc(k.name)}</a></li>`).join('')}</ul>` : ''}
+
+        <div class="section-title">
+          <h2>Mais vendidos</h2>
+          <small>Ranking oficial do Mercado Livre</small>
+        </div>
+        <div id="items">${skeleton()}</div>`;
+      document.querySelector('.main').scrollTop = 0;
+    }
+
+    function skeleton() {
+      const row = `<li><span class="pos">0</span><span class="thumb"></span><span class="info"><span style="width:80%"></span><span style="width:40%"></span></span></li>`;
+      return `<ol class="rank skeleton" aria-label="Carregando">${row.repeat(6)}</ol>`;
+    }
+
+    async function loadItems(c) {
+      const req = ++itemsRequest;
+      const $items = document.getElementById('items');
+      try {
+        const res = await fetch(`api/categorias/${c.id}/itens?limit=20`);
+        const data = await res.json();
+        if (req !== itemsRequest) return; // o usuário já trocou de categoria
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        if (!data.items.length) {
+          $items.innerHTML = `<p class="status">O Mercado Livre não tem ranking de mais vendidos para esta categoria. Tente uma subcategoria.</p>`;
+          return;
+        }
+        $items.innerHTML = `<ol class="rank">${data.items.map(itemRow).join('')}</ol>`;
+      } catch (err) {
+        if (req !== itemsRequest) return;
+        const notFound = /HTTP 404/.test(err.message);
+        $items.innerHTML = `<p class="status error">${notFound
+          ? 'O Mercado Livre não tem ranking de mais vendidos para esta categoria. Tente uma subcategoria.'
+          : `Não foi possível carregar os itens: ${esc(err.message)}. Confira se o server.js está rodando com o .env.`}</p>`;
+      }
+    }
+
+    function itemRow(it) {
+      const blocked = Boolean(it.error);
+      const title = blocked ? `Anúncio ${it.id}` : it.title;
+      const img = it.picture
+        ? `<img class="thumb" src="${esc(it.picture)}" alt="" loading="lazy">`
+        : `<span class="thumb none">sem foto</span>`;
+      const meta = blocked
+        ? 'Detalhes indisponíveis pela API. Abra no site para ver.'
+        : [it.price != null ? `<span class="price">${money.format(it.price)}</span>` : null, esc(it.id)].filter(Boolean).join(' &nbsp; ');
+      return `<li>
+        <span class="pos">${it.position}</span>
+        ${img}
+        <span class="info">
+          <a href="${esc(it.permalink)}" target="_blank" rel="noopener">${esc(title)}</a>
+          <div class="meta">${meta}</div>
+        </span>
+      </li>`;
+    }
+
+    $view.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-copy]');
+      if (!btn) return;
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copy);
+        btn.textContent = 'Copiado';
+        setTimeout(() => (btn.textContent = 'Copiar'), 1500);
+      } catch { /* clipboard indisponível */ }
+    });
+
+    window.addEventListener('hashchange', selectFromHash);
+
+    loadCategories()
+      .then(selectFromHash)
+      .catch((err) => {
+        $view.innerHTML = `<div class="empty"><h2>Não foi possível carregar as categorias</h2><p>${esc(err.message)}</p></div>`;
+      });
+  </script>
+</body>
+</html>

@@ -130,8 +130,13 @@ async function getCategoryHighlights(categoryId) {
 async function getBestSellersByCategory(categoryId, { limit = 10 } = {}) {
   const highlights = (await getCategoryHighlights(categoryId)).slice(0, limit);
 
+  // USER_PRODUCT (/user-products/{id}) é sempre bloqueado para apps não certificados: nem tenta.
   const results = await Promise.allSettled(
-    highlights.map((h) => (h.type === 'PRODUCT' ? getProductById(h.id) : getItemById(h.id))),
+    highlights.map((h) => {
+      if (h.type === 'PRODUCT') return getProductById(h.id);
+      if (h.type === 'ITEM') return getItemById(h.id);
+      return Promise.reject(new Error('Sem acesso a este tipo de anúncio'));
+    }),
   );
 
   return results.map((r, i) => ({
@@ -139,8 +144,15 @@ async function getBestSellersByCategory(categoryId, { limit = 10 } = {}) {
     type: highlights[i].type,
     ...(r.status === 'fulfilled'
       ? formatProduct(r.value)
-      : { id: highlights[i].id, error: r.reason.message }),
+      : { id: highlights[i].id, permalink: publicLink(highlights[i]), error: r.reason.message }),
   }));
+}
+
+/** Link público no site para um destaque (produto, anúncio ou user product). */
+function publicLink({ id, type }) {
+  if (type === 'PRODUCT') return `https://www.mercadolivre.com.br/p/${id}`;
+  if (type === 'USER_PRODUCT') return `https://www.mercadolivre.com.br/up/${id}`;
+  return `https://produto.mercadolivre.com.br/${id.replace(/^([A-Z]+)(\d+)$/, '$1-$2')}`;
 }
 
 function formatProduct(p) {
