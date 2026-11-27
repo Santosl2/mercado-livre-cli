@@ -163,8 +163,44 @@
       padding-bottom: 10px;
       border-bottom: 2px solid var(--ink);
     }
-    .section-title h2 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
-    .section-title small { color: var(--muted); }
+    .section-title small { color: var(--muted); text-align: right; }
+    .tabs { display: flex; gap: 22px; }
+    .tabs button {
+      padding: 0;
+      border: 0;
+      background: none;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .tabs button[aria-selected="true"] { color: var(--ink); font-weight: 800; }
+    .tabs button:hover { color: var(--ink); }
+
+    .rank.plain li { grid-template-columns: 72px 1fr; }
+    .domains { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 4px; }
+    .domains button {
+      padding: 5px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .domains button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+    .more {
+      display: block;
+      margin: 24px auto 0;
+      padding: 10px 22px;
+      border: 1px solid var(--ink);
+      border-radius: 8px;
+      background: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .more:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+    .more:disabled { opacity: 0.6; cursor: progress; }
 
     /* Ranking: a peça marcante da página */
     .rank { margin: 0; padding: 0; list-style: none; columns: 2 420px; column-gap: 40px; }
@@ -249,6 +285,9 @@
       .main { overflow: visible; }
       .main-inner { padding: 24px 16px 48px; }
       .rank li { grid-template-columns: 40px 56px 1fr; gap: 12px; }
+      .rank.plain li { grid-template-columns: 56px 1fr; }
+      .section-title { flex-wrap: wrap; }
+      .tabs button { font-size: 17px; }
       .pos { font-size: 30px; }
       .thumb { width: 56px; height: 56px; }
     }
@@ -392,7 +431,7 @@
       state.browsePath = childrenOf(c.path).length ? c.path : c.parentPath;
       renderSidebar();
       renderCategory(c);
-      loadItems(c);
+      showTab('ranking', c);
     }
 
     function renderCategory(c) {
@@ -413,38 +452,123 @@
         ${kids.length ? `<ul class="subcats">${kids.slice(0, 24).map((k) => `<li><a href="#${k.id}">${esc(k.name)}</a></li>`).join('')}</ul>` : ''}
 
         <div class="section-title">
-          <h2>Mais vendidos</h2>
-          <small>Ranking oficial do Mercado Livre</small>
+          <div class="tabs" role="tablist" aria-label="O que listar">
+            <button role="tab" data-tab="ranking" aria-selected="true">Mais vendidos</button>
+            <button role="tab" data-tab="produtos" aria-selected="false">Todos os produtos</button>
+          </div>
+          <small id="tab-note"></small>
         </div>
         <div id="items">${skeleton()}</div>`;
       document.querySelector('.main').scrollTop = 0;
     }
 
-    function skeleton() {
-      const row = `<li><span class="pos">0</span><span class="thumb"></span><span class="info"><span style="width:80%"></span><span style="width:40%"></span></span></li>`;
-      return `<ol class="rank skeleton" aria-label="Carregando">${row.repeat(6)}</ol>`;
+    function skeleton(ranked = true) {
+      const row = `<li>${ranked ? '<span class="pos">0</span>' : ''}<span class="thumb"></span><span class="info"><span style="width:80%"></span><span style="width:40%"></span></span></li>`;
+      return `<ol class="rank skeleton ${ranked ? '' : 'plain'}" aria-label="Carregando">${row.repeat(6)}</ol>`;
     }
 
-    async function loadItems(c) {
+    const PAGE = 20;
+    const NO_RANKING = 'no-ranking';
+
+    async function getJson(url) {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || `HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+      return data;
+    }
+
+    function setTab(tab, note = '') {
+      document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+      document.getElementById('tab-note').textContent = note;
+    }
+
+    function failMessage(err) {
+      return `<p class="status error">Não foi possível carregar os produtos: ${esc(err.message)}. Confira se o server.js está rodando com o .env.</p>`;
+    }
+
+    async function showTab(tab, c = state.byId.get(state.selected), opts = {}) {
       const req = ++itemsRequest;
       const $items = document.getElementById('items');
-      try {
-        const res = await fetch(`api/categorias/${c.id}/itens?limit=20`);
-        const data = await res.json();
-        if (req !== itemsRequest) return; // o usuário já trocou de categoria
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      $items.innerHTML = skeleton(tab === 'ranking');
+      setTab(tab, tab === 'ranking' ? 'Ranking oficial do Mercado Livre' : '');
 
-        if (!data.items.length) {
-          $items.innerHTML = `<p class="status">O Mercado Livre não tem ranking de mais vendidos para esta categoria. Tente uma subcategoria.</p>`;
+      try {
+        if (tab === 'ranking') {
+          const data = await getJson(`api/categorias/${c.id}/itens?limit=20`).catch((err) => {
+            if (err.status === 404) return { items: [], [NO_RANKING]: true };
+            throw err;
+          });
+          if (req !== itemsRequest) return; // o usuário já trocou de categoria ou de aba
+          if (!data.items.length) {
+            // Sem ranking: mostra o catálogo no lugar
+            return showTab('produtos', c, { fromRanking: true });
+          }
+          $items.innerHTML = `<ol class="rank">${data.items.map(itemRow).join('')}</ol>`;
           return;
         }
-        $items.innerHTML = `<ol class="rank">${data.items.map(itemRow).join('')}</ol>`;
-      } catch (err) {
+
+        const data = await loadProductsPage(c, 0, opts.domain);
         if (req !== itemsRequest) return;
-        const notFound = /HTTP 404/.test(err.message);
-        $items.innerHTML = `<p class="status error">${notFound
-          ? 'O Mercado Livre não tem ranking de mais vendidos para esta categoria. Tente uma subcategoria.'
-          : `Não foi possível carregar os itens: ${esc(err.message)}. Confira se o server.js está rodando com o .env.`}</p>`;
+        renderProducts(c, data, opts.fromRanking);
+      } catch (err) {
+        if (req === itemsRequest) $items.innerHTML = failMessage(err);
+      }
+    }
+
+    function loadProductsPage(c, offset, domain) {
+      const params = new URLSearchParams({ limit: PAGE, offset });
+      if (domain) params.set('domain', domain);
+      return getJson(`api/categorias/${c.id}/produtos?${params}`);
+    }
+
+    function renderProducts(c, data, fromRanking) {
+      const $items = document.getElementById('items');
+      const prefix = fromRanking ? 'Sem ranking de mais vendidos aqui. ' : '';
+
+      if (!data.items.length) {
+        setTab('produtos', '');
+        $items.innerHTML = `<p class="status">${esc(prefix + (data.reason || 'Nenhum produto encontrado.'))}
+          ${childrenOf(c.path).length ? ' Escolha uma subcategoria acima.' : ''}</p>`;
+        return;
+      }
+
+      const total = data.total >= 10000 ? 'Mais de 10 mil' : fmt.format(data.total);
+      setTab('produtos', `${prefix}${total} produtos do tipo “${data.domain.name}”`);
+
+      const domainChips = data.domains.length > 1
+        ? `<div class="domains" role="group" aria-label="Tipo de produto">${data.domains.map((d) =>
+            `<button data-domain="${esc(d.id)}" aria-pressed="${d.id === data.domain.id}">${esc(d.name)}</button>`).join('')}</div>`
+        : '';
+
+      $items.innerHTML = `${domainChips}<ul class="rank plain">${data.items.map(itemRow).join('')}</ul>${moreButton(data, data.items.length)}`;
+      $items.dataset.activeDomain = data.domain.id;
+    }
+
+    function moreButton(data, shown) {
+      return shown < Math.min(data.total, 10000)
+        ? `<button class="more" data-more="${shown}">Carregar mais</button>`
+        : '';
+    }
+
+    async function loadMore(btn) {
+      const c = state.byId.get(state.selected);
+      const $items = document.getElementById('items');
+      const offset = Number(btn.dataset.more);
+      const req = itemsRequest;
+      btn.disabled = true;
+      btn.textContent = 'Carregando…';
+      try {
+        const data = await loadProductsPage(c, offset, $items.dataset.activeDomain);
+        if (req !== itemsRequest) return;
+        $items.querySelector('.plain').insertAdjacentHTML('beforeend', data.items.map(itemRow).join(''));
+        btn.outerHTML = moreButton(data, offset + data.items.length);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Tentar de novo';
       }
     }
 
@@ -458,7 +582,7 @@
         ? 'Detalhes indisponíveis pela API. Abra no site para ver.'
         : [it.price != null ? `<span class="price">${money.format(it.price)}</span>` : null, esc(it.id)].filter(Boolean).join(' &nbsp; ');
       return `<li>
-        <span class="pos">${it.position}</span>
+        ${it.position != null ? `<span class="pos">${it.position}</span>` : ''}
         ${img}
         <span class="info">
           <a href="${esc(it.permalink)}" target="_blank" rel="noopener">${esc(title)}</a>
@@ -468,6 +592,13 @@
     }
 
     $view.addEventListener('click', async (e) => {
+      const tab = e.target.closest('[data-tab]');
+      if (tab && tab.getAttribute('aria-selected') !== 'true') return showTab(tab.dataset.tab);
+      const domain = e.target.closest('[data-domain]');
+      if (domain) return showTab('produtos', undefined, { domain: domain.dataset.domain });
+      const more = e.target.closest('[data-more]');
+      if (more) return loadMore(more);
+
       const btn = e.target.closest('[data-copy]');
       if (!btn) return;
       try {

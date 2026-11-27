@@ -62,10 +62,17 @@ async function request(path, params = {}) {
   const token = await getAccessToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) throw new MLError(`Erro em GET ${url.pathname}`, res.status, body);
-  return body;
+  // 429 = limite de requisições: espera e tenta de novo (até 3 vezes, 0,5s / 1s / 2s)
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
+    const body = await res.json().catch(() => null);
+    if (res.status === 429 && attempt < 3) {
+      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+      continue;
+    }
+    if (!res.ok) throw new MLError(`Erro em GET ${url.pathname}`, res.status, body);
+    return body;
+  }
 }
 
 // ---------- Itens (anúncios) ----------
@@ -90,9 +97,18 @@ async function getProductById(productId) {
 
 // ---------- Categorias ----------
 
+// Categorias mudam raramente: cache em memória por 1h (evita 429 na descoberta de domínios)
+const categoryCache = new Map();
+const CATEGORY_TTL = 60 * 60 * 1000;
+
 /** Dados da categoria (nome, caminho, total de itens). */
 async function getCategory(categoryId) {
-  return request(`/categories/${encodeURIComponent(categoryId)}`);
+  const hit = categoryCache.get(categoryId);
+  if (hit && Date.now() - hit.at < CATEGORY_TTL) return hit.promise;
+  const promise = request(`/categories/${encodeURIComponent(categoryId)}`);
+  categoryCache.set(categoryId, { at: Date.now(), promise });
+  promise.catch(() => categoryCache.delete(categoryId));
+  return promise;
 }
 
 /** Categorias raiz do site (~30). */
@@ -148,6 +164,82 @@ async function getBestSellersByCategory(categoryId, { limit = 10 } = {}) {
   }));
 }
 
+// ---------- Produtos por categoria (catálogo) ----------
+
+/** Busca no catálogo de produtos. Exige `q`; `domainId` restringe o tipo de produto. */
+async function searchProducts(q, { domainId, limit = 20, offset = 0 } = {}) {
+  const data = await request('/products/search', {
+    status: 'active',
+    site_id: SITE_ID,
+    q,
+    domain_id: domainId,
+    limit,
+    offset,
+  });
+  return {
+    total: data.paging?.total ?? 0,
+    offset,
+    limit,
+    items: (data.results || []).map(formatProduct),
+  };
+}
+
+/** Sugere domínios (tipos de produto) e categorias a partir de um texto. */
+async function discoverDomains(q, { limit = 8 } = {}) {
+  return request(`/sites/${SITE_ID}/domain_discovery/search`, { q, limit });
+}
+
+/**
+ * Domínios que pertencem à categoria (ou a uma subcategoria dela).
+ * O ML não tem rota "categoria -> domínios", então descobre pelo nome da categoria
+ * e descarta sugestões de fora da árvore (ex: "Animais" sugere livros e pelúcias).
+ */
+async function getCategoryDomains(categoryId) {
+  const category = await getCategory(categoryId);
+  const suggestions = await discoverDomains(category.name);
+
+  const otherIds = [...new Set(suggestions.map((s) => s.category_id))].filter((id) => id !== categoryId);
+  const others = await Promise.all(otherIds.map((id) => getCategory(id).catch(() => null)));
+  const insideTree = new Set([categoryId]);
+  for (const c of others) {
+    if (c?.path_from_root.some((p) => p.id === categoryId)) insideTree.add(c.id);
+  }
+
+  const domains = new Map();
+  for (const s of suggestions) {
+    if (insideTree.has(s.category_id) && !domains.has(s.domain_id)) {
+      domains.set(s.domain_id, { id: s.domain_id, name: s.domain_name, categoryId: s.category_id });
+    }
+  }
+  return { category, domains: [...domains.values()] };
+}
+
+/**
+ * Produtos de catálogo de uma categoria (não só os mais vendidos), com paginação.
+ * Retorna { category, domain, domains, total, offset, limit, items }.
+ * Se a categoria não tiver um domínio próprio (ex: "Outros"), retorna items vazio e `reason`.
+ */
+async function getProductsByCategory(categoryId, { domainId, limit = 20, offset = 0 } = {}) {
+  const { category, domains } = await getCategoryDomains(categoryId);
+  const base = { categoryId, domains, total: 0, offset, limit, items: [] };
+
+  const domain = domains.find((d) => d.id === domainId) || domains[0];
+  if (!domain) {
+    return { ...base, domain: null, reason: 'Esta categoria não tem um tipo de produto próprio no catálogo.' };
+  }
+
+  // O nome do domínio ("Celulares") dá resultados melhores que o da categoria
+  // ("Celulares e Smartphones" casa com títulos genéricos). Se não achar nada, tenta o outro.
+  let result = await searchProducts(domain.name, { domainId: domain.id, limit, offset });
+  if (!result.total && domain.name !== category.name) {
+    result = await searchProducts(category.name, { domainId: domain.id, limit, offset });
+  }
+  if (!result.total) {
+    return { ...base, domain, reason: `O catálogo não tem produtos do tipo "${domain.name}".` };
+  }
+  return { ...base, ...result, domain };
+}
+
 /** Link público no site para um destaque (produto, anúncio ou user product). */
 function publicLink({ id, type }) {
   if (type === 'PRODUCT') return `https://www.mercadolivre.com.br/p/${id}`;
@@ -170,6 +262,10 @@ module.exports = {
   getItemById,
   getItemDescription,
   getProductById,
+  searchProducts,
+  discoverDomains,
+  getCategoryDomains,
+  getProductsByCategory,
   getCategory,
   listRootCategories,
   listSubcategories,

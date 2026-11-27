@@ -59,6 +59,23 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // GET /api/categorias/:id/produtos?limit=20&offset=0&domain=MLB-CELLPHONES
+  const prodMatch = url.pathname.match(/^\/api\/categorias\/([A-Z]{3}\d+)\/produtos$/);
+  if (prodMatch && req.method === 'GET') {
+    const id = prodMatch[1];
+    const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 50);
+    const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0);
+    const domainId = url.searchParams.get('domain') || undefined;
+    try {
+      const data = await cached(`produtos:${id}:${domainId}:${limit}:${offset}`, () =>
+        ml.getProductsByCategory(id, { domainId, limit, offset }),
+      );
+      return sendJson(res, 200, data);
+    } catch (err) {
+      return sendJson(res, err.status || 500, { error: err.message });
+    }
+  }
+
   sendJson(res, 404, { error: 'Rota não encontrada' });
 });
 

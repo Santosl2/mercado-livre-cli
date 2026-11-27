@@ -119,6 +119,9 @@ O `server.js` existe porque o navegador não pode chamar a API direto: o `CLIENT
 | Rota | Retorno |
 |---|---|
 | `GET /api/categorias/:id/itens?limit=20` | `{ id, items }`, no mesmo formato de `getBestSellersByCategory`. Máximo de 50 itens, com cache de 10 minutos. |
+| `GET /api/categorias/:id/produtos?limit=20&offset=0&domain=` | Mesmo formato de `getProductsByCategory`. Paginado, com cache de 10 minutos. |
+
+A página tem duas abas: **Mais vendidos** e **Todos os produtos** (catálogo paginado, com "Carregar mais"). Se a categoria não tem ranking, abre direto em "Todos os produtos".
 
 No ranking, itens do tipo `USER_PRODUCT` e `ITEM` aparecem sem foto e sem título, porque a API bloqueia esses dados (veja as [limitações](#limitações-da-api)). O link para abrir no site continua funcionando.
 
@@ -162,6 +165,27 @@ As variáveis de ambiente precisam estar carregadas, seja com `node --env-file=.
 | `listAllCategories()` | `GET /sites/{site}/categories/all` | `[{ id, name, path, isLeaf, totalItems }]`, cerca de 12 mil itens numa única requisição. |
 | `getCategoryHighlights(categoryId)` | `GET /highlights/{site}/category/{id}` | `[{ id, position, type }]`, onde `type` é `PRODUCT` ou `ITEM`. |
 | `getBestSellersByCategory(categoryId, { limit })` | highlights + `/products/{id}` | `[{ position, type, id, title, price, domain, picture, permalink }]` |
+
+#### Produtos de uma categoria (sem ser só os mais vendidos)
+
+| Função | Rota da API | Retorno |
+|---|---|---|
+| `getProductsByCategory(categoryId, { limit, offset, domainId })` | `domain_discovery` + `/products/search` | `{ categoryId, domain, domains, total, offset, limit, items, reason? }` |
+| `getCategoryDomains(categoryId)` | `domain_discovery` + `/categories/{id}` | `{ category, domains: [{ id, name, categoryId }] }` |
+| `searchProducts(q, { domainId, limit, offset })` | `GET /products/search` | `{ total, offset, limit, items }` |
+| `discoverDomains(q)` | `GET /sites/{site}/domain_discovery/search` | `[{ domain_id, domain_name, category_id, category_name }]` |
+
+Como funciona `getProductsByCategory`: a busca de anúncios por categoria (`/sites/MLB/search`) é bloqueada, e a busca de catálogo (`/products/search`) ignora o filtro de categoria. Então a função faz três passos:
+
+1. Descobre o **domínio** (tipo de produto) da categoria pelo nome dela. Ex: Celulares e Smartphones → `MLB-CELLPHONES`.
+2. Descarta domínios que não pertencem à categoria nem às subcategorias dela.
+3. Busca no catálogo pelo nome do domínio, filtrando por `domain_id`.
+
+Limitações:
+
+- **Funciona melhor em categorias específicas** (folhas da árvore). Categorias genéricas ou "Outros" muitas vezes não têm domínio próprio e retornam `items: []` com um `reason`.
+- **Categorias amplas** (ex: "Saúde") podem cair em um único domínio ("Suplementos"). Use `domains` e `domainId` para escolher outro.
+- **O total vai até 10.000** e a ordem não é por relevância nem por vendas. Também não há preço, por ser catálogo.
 
 Sobre `getBestSellersByCategory`:
 
